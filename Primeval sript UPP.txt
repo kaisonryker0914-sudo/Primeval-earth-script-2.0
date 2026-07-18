@@ -251,7 +251,7 @@ local function toggleFlying()
 end
 
 local Button = MainTab:CreateButton({
-	Name = "Toggle Fly",
+	Name = "Toggle Fly:   P",
 
 	Callback = function()
 		toggleFlying()
@@ -389,7 +389,7 @@ local function toggleWalkSpeed()
 end
 
 local WalkSpeedButton = MainTab:CreateButton({
-	Name = "Toggle Walk Speed",
+	Name = "Toggle Walk Speed:   U",
 
 	Callback = function()
 		toggleWalkSpeed()
@@ -655,7 +655,7 @@ local function toggleClickTP()
 end
 
 local ClickTPButton = TPTab:CreateButton({
-	Name = "Toggle Click TP",
+	Name = "Toggle Click TP:   Q",
 
 	Callback = function()
 		toggleClickTP()
