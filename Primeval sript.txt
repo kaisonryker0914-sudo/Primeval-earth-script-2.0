@@ -1,0 +1,486 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "🦖 Primeval Survival Script 🦕",
+   Icon = 111155176453434, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "HyperMint Hub",
+   LoadingSubtitle = "By:HyperMint ",
+   ShowText = "Rayfield", -- for mobile users to unhide Rayfield, change if you'd like
+   Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   ToggleUIKeybind = "l", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from emitting warnings when the script has a version mismatch with the interface.
+
+   -- ScriptID = "sid_xxxxxxxxxxxx", -- Your Script ID from developer.sirius.menu — enables analytics, managed keys, and script hosting
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = PrimevalScript, -- Create a custom folder for your hub/game
+      FileName = "Settings"
+   },
+
+   Discord = {
+      Enabled = True, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "https://discord.gg/BBWcy9SxHk", -- The Discord invite code, do not include Discord.gg/. E.g. Discord.gg/ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the Discord every time they load it up
+   },
+
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+      FileName = "Key", -- It is recommended to use something unique, as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"Hello"} -- List of keys that the system will accept, can be RAW file links (pastebin, github, etc.) or simple strings ("hello", "key22")
+   }
+})
+
+Rayfield:Notify({
+   Title = "Notifiction",
+   Content = "Primeval Survival Script executed correctly",
+   Duration = 6.5,
+   Image = 111155176453434,
+})
+
+local MainTab = Window:CreateTab("🏠Home", nil) -- Title, Image
+local Section = MainTab:CreateSection("Main")
+
+local CurrentFlySpeed = 10
+
+local Slider = MainTab:CreateSlider({
+	Name = "Fly Speed",
+	Range = {0, 300},
+	Increment = 10,
+	Suffix = " Fly",
+	CurrentValue = CurrentFlySpeed,
+	Flag = "FlySpeedSlider",
+
+	Callback = function(value)
+		CurrentFlySpeed = value
+	end,
+})
+
+local function ValueFlySpeed()
+	return CurrentFlySpeed
+end
+----------------------------------------------------------------------------------
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+local flying = false
+
+local flyConnection
+local movementInputBeganConnection
+local movementInputEndedConnection
+
+local bodyGyro
+local bodyVelocity
+local humanoid
+
+local controls = {
+	Forward = 0,
+	Backward = 0,
+	Left = 0,
+	Right = 0,
+	Up = 0,
+	Down = 0,
+}
+
+local function resetControls()
+	for controlName in pairs(controls) do
+		controls[controlName] = 0
+	end
+end
+
+local function setControl(keyCode, value)
+	if keyCode == Enum.KeyCode.W then
+		controls.Forward = value
+
+	elseif keyCode == Enum.KeyCode.S then
+		controls.Backward = value
+
+	elseif keyCode == Enum.KeyCode.A then
+		controls.Left = value
+
+	elseif keyCode == Enum.KeyCode.D then
+		controls.Right = value
+
+	elseif keyCode == Enum.KeyCode.Space then
+		controls.Up = value
+
+	elseif keyCode == Enum.KeyCode.LeftControl then
+		controls.Down = value
+	end
+end
+
+local function stopFlying()
+	flying = false
+	resetControls()
+
+	if flyConnection then
+		flyConnection:Disconnect()
+		flyConnection = nil
+	end
+
+	if movementInputBeganConnection then
+		movementInputBeganConnection:Disconnect()
+		movementInputBeganConnection = nil
+	end
+
+	if movementInputEndedConnection then
+		movementInputEndedConnection:Disconnect()
+		movementInputEndedConnection = nil
+	end
+
+	if bodyGyro then
+		bodyGyro:Destroy()
+		bodyGyro = nil
+	end
+
+	if bodyVelocity then
+		bodyVelocity:Destroy()
+		bodyVelocity = nil
+	end
+
+	if humanoid then
+		humanoid.PlatformStand = false
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+end
+
+local function startFlying()
+	local character = player.Character or player.CharacterAdded:Wait()
+	local rootPart = character:WaitForChild("HumanoidRootPart")
+
+	humanoid = character:WaitForChild("Humanoid")
+
+	local camera = workspace.CurrentCamera
+
+	resetControls()
+	flying = true
+
+	bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.Name = "FlyGyro"
+	bodyGyro.P = 90000
+	bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+	bodyGyro.CFrame = rootPart.CFrame
+	bodyGyro.Parent = rootPart
+
+	bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.Name = "FlyVelocity"
+	bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+	bodyVelocity.Velocity = Vector3.zero
+	bodyVelocity.Parent = rootPart
+
+	humanoid.PlatformStand = true
+
+	movementInputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or not flying then
+			return
+		end
+
+		setControl(input.KeyCode, 1)
+	end)
+
+	movementInputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+		if not flying then
+			return
+		end
+
+		setControl(input.KeyCode, 0)
+	end)
+
+	flyConnection = RunService.RenderStepped:Connect(function()
+		if not flying then
+			return
+		end
+
+		if not character.Parent or humanoid.Health <= 0 then
+			stopFlying()
+			return
+		end
+
+		local cameraCFrame = camera.CFrame
+
+		local forwardAmount = controls.Forward - controls.Backward
+		local sidewaysAmount = controls.Right - controls.Left
+		local verticalAmount = controls.Up - controls.Down
+
+		local movement =
+			(cameraCFrame.LookVector * forwardAmount)
+			+ (cameraCFrame.RightVector * sidewaysAmount)
+			+ (Vector3.yAxis * verticalAmount)
+
+		local flySpeed = ValueFlySpeed()
+
+		if typeof(flySpeed) ~= "number" then
+			warn("ValueFlySpeed() must return a number")
+			flySpeed = 50
+		end
+
+		if movement.Magnitude > 0 then
+			bodyVelocity.Velocity = movement.Unit * flySpeed
+		else
+			bodyVelocity.Velocity = Vector3.zero
+		end
+
+		bodyGyro.CFrame = cameraCFrame
+	end)
+end
+
+local function toggleFlying()
+	if flying then
+		stopFlying()
+	else
+		startFlying()
+	end
+end
+
+local Button = MainTab:CreateButton({
+	Name = "Toggle Fly",
+
+	Callback = function()
+		toggleFlying()
+	end,
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.P then
+		toggleFlying()
+	end
+end)
+
+player.CharacterRemoving:Connect(function()
+	if flying then
+		stopFlying()
+	end
+end)
+
+----------------------------------------------------------------------------------
+-- WALKSPEED SLIDER + BUTTON
+----------------------------------------------------------------------------------
+
+local character = player.Character or player.CharacterAdded:Wait()
+local currentHumanoid = character:WaitForChild("Humanoid")
+
+-- Pull both values from the player's current Humanoid.
+local DefaultWalkSpeed = currentHumanoid.WalkSpeed
+local CurrentWalkSpeed = currentHumanoid.WalkSpeed
+
+local WalkSpeedSlider = MainTab:CreateSlider({
+	Name = "Walk Speed",
+	Range = {0, 300},
+	Increment = 1,
+	Suffix = " Speed",
+	CurrentValue = CurrentWalkSpeed,
+	Flag = "WalkSpeedSlider",
+
+	Callback = function(value)
+		CurrentWalkSpeed = value
+
+		-- Update immediately while enabled.
+		if walkSpeedEnabled then
+			local humanoid = player.Character
+				and player.Character:FindFirstChildOfClass("Humanoid")
+
+			if humanoid then
+				humanoid.WalkSpeed = CurrentWalkSpeed
+			end
+		end
+	end,
+})
+
+local walkSpeedEnabled = false
+local walkSpeedConnection
+
+local function ValueWalkSpeed()
+	return CurrentWalkSpeed
+end
+
+local function getCurrentHumanoid()
+	local currentCharacter = player.Character
+
+	if not currentCharacter then
+		return nil
+	end
+
+	return currentCharacter:FindFirstChildOfClass("Humanoid")
+end
+
+local function updateWalkSpeed()
+	local humanoid = getCurrentHumanoid()
+
+	if not humanoid then
+		return
+	end
+
+	if walkSpeedEnabled then
+		humanoid.WalkSpeed = ValueWalkSpeed()
+	else
+		humanoid.WalkSpeed = DefaultWalkSpeed
+	end
+end
+
+local function enableWalkSpeed()
+	if walkSpeedEnabled then
+		return
+	end
+
+	local humanoid = getCurrentHumanoid()
+
+	if humanoid then
+		-- Remember the speed the player had before enabling.
+		DefaultWalkSpeed = humanoid.WalkSpeed
+	end
+
+	walkSpeedEnabled = true
+	updateWalkSpeed()
+
+	walkSpeedConnection = RunService.Heartbeat:Connect(function()
+		local activeHumanoid = getCurrentHumanoid()
+
+		if activeHumanoid
+			and activeHumanoid.WalkSpeed ~= CurrentWalkSpeed then
+
+			activeHumanoid.WalkSpeed = CurrentWalkSpeed
+		end
+	end)
+end
+
+local function disableWalkSpeed()
+	if not walkSpeedEnabled then
+		return
+	end
+
+	walkSpeedEnabled = false
+
+	if walkSpeedConnection then
+		walkSpeedConnection:Disconnect()
+		walkSpeedConnection = nil
+	end
+
+	updateWalkSpeed()
+end
+
+local function toggleWalkSpeed()
+	if walkSpeedEnabled then
+		disableWalkSpeed()
+	else
+		enableWalkSpeed()
+	end
+end
+
+local WalkSpeedButton = MainTab:CreateButton({
+	Name = "Toggle Walk Speed",
+
+	Callback = function()
+		toggleWalkSpeed()
+	end,
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.U then
+		toggleWalkSpeed()
+	end
+end)
+
+player.CharacterAdded:Connect(function(newCharacter)
+	local newHumanoid = newCharacter:WaitForChild("Humanoid")
+
+	-- Pull the new character's current WalkSpeed.
+	DefaultWalkSpeed = newHumanoid.WalkSpeed
+
+	if walkSpeedEnabled then
+		newHumanoid.WalkSpeed = CurrentWalkSpeed
+	else
+		CurrentWalkSpeed = newHumanoid.WalkSpeed
+	end
+end)
+
+player.CharacterRemoving:Connect(function()
+	if walkSpeedConnection then
+		walkSpeedConnection:Disconnect()
+		walkSpeedConnection = nil
+	end
+end)
+
+----------------------------------------------------------------------------------
+-- AUTO DRINK BUTTON
+----------------------------------------------------------------------------------
+
+local autoDrinkEnabled = false
+local autoDrinkThread
+
+-- Change this to control how often Drink is invoked.
+local DRINK_DELAY = 1
+
+local function drink()
+	local characterFunctions = game:GetService("ReplicatedStorage")
+		:WaitForChild("Remotes")
+		:WaitForChild("Character")
+		:WaitForChild("CharacterFunctions")
+
+	local success, result = pcall(function()
+		return characterFunctions:InvokeServer("Drink")
+	end)
+
+	if not success then
+		warn("Auto Drink failed:", result)
+	end
+end
+
+local function startAutoDrink()
+	if autoDrinkEnabled then
+		return
+	end
+
+	autoDrinkEnabled = true
+
+	autoDrinkThread = task.spawn(function()
+		while autoDrinkEnabled do
+			drink()
+			task.wait(DRINK_DELAY)
+		end
+
+		autoDrinkThread = nil
+	end)
+end
+
+local function stopAutoDrink()
+	autoDrinkEnabled = false
+end
+
+local function toggleAutoDrink()
+	if autoDrinkEnabled then
+		stopAutoDrink()
+	else
+		startAutoDrink()
+	end
+end
+
+local AutoDrinkButton = MainTab:CreateButton({
+	Name = "Toggle Auto Drink",
+
+	Callback = function()
+		toggleAutoDrink()
+	end,
+})
+
+
+
