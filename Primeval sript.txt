@@ -49,6 +49,12 @@ Rayfield:Notify({
 local MainTab = Window:CreateTab("🏠Home", nil) -- Title, Image
 local Section = MainTab:CreateSection("Main")
 
+local ESPTab = Window:CreateTab("ESP", nil) -- Title, Image
+local Section = ESPTab:CreateSection("ESP")
+
+local TPTab = Window:CreateTab("Teleports", nil) -- Title, Image
+local Section = TPTab:CreateSection("TP")
+
 local CurrentFlySpeed = 10
 
 local Slider = MainTab:CreateSlider({
@@ -581,7 +587,7 @@ local function toggleZoneTeleport()
 	end
 end
 
-local ZoneTeleportButton = MainTab:CreateButton({
+local ZoneTeleportButton = TPTab:CreateButton({
 	Name = "Toggle Zone Teleport",
 
 	Callback = function()
@@ -757,7 +763,7 @@ local function toggleESP()
 	end
 end
 
-local MeatESPButton = MainTab:CreateButton({
+local MeatESPButton = ESPTab:CreateButton({
 	Name = "Toggle Meat ESP",
 
 	Callback = function()
