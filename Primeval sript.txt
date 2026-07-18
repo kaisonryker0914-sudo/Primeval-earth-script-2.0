@@ -595,7 +595,6 @@ local ZoneTeleportButton = TPTab:CreateButton({
 	end,
 })
 
-```lua
 ----------------------------------------------------------------------------------
 -- CLICK TP BUTTON
 -- Toggle with GUI button, teleport with Q
@@ -684,7 +683,6 @@ player.CharacterRemoving:Connect(function()
 	-- Click TP remains enabled after respawning.
 	-- Change this to disableClickTP() if you want it turned off on death.
 end)
-```
 
 ----------------------------------------------------------------------------------
 -- TOGGLE MEAT / CORPSE RED DOT ESP
