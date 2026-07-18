@@ -589,6 +589,185 @@ local ZoneTeleportButton = MainTab:CreateButton({
 	end,
 })
 
+```lua
+----------------------------------------------------------------------------------
+-- TOGGLE MEAT / CORPSE RED DOT ESP
+----------------------------------------------------------------------------------
+
+local Workspace = game:GetService("Workspace")
+
+local TARGET_NAMES = {
+	Meat1 = true,
+	Meat2 = true,
+	Meat3 = true,
+	Corpse = true,
+}
+
+local ESP_NAME = "MeatRedDotESP"
+
+local espEnabled = false
+local descendantAddedConnection
+local trackedModels = {}
+
+local function isTargetModel(object)
+	return object:IsA("Model") and TARGET_NAMES[object.Name] == true
+end
+
+local function getAdornee(model)
+	return model.PrimaryPart
+		or model:FindFirstChild("HumanoidRootPart")
+		or model:FindFirstChild("Head")
+		or model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function removeESP(model)
+	local esp = model:FindFirstChild(ESP_NAME)
+
+	if esp then
+		esp:Destroy()
+	end
+
+	trackedModels[model] = nil
+end
+
+local function addESP(model)
+	if not espEnabled then
+		return
+	end
+
+	if not isTargetModel(model) then
+		return
+	end
+
+	if model:FindFirstChild(ESP_NAME) then
+		trackedModels[model] = true
+		return
+	end
+
+	local adornee = getAdornee(model)
+
+	if not adornee then
+		return
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = ESP_NAME
+	billboard.Adornee = adornee
+	billboard.Size = UDim2.fromOffset(20, 20)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 10000
+	billboard.Parent = model
+
+	local dot = Instance.new("Frame")
+	dot.Name = "Dot"
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.fromScale(0.5, 0.5)
+	dot.Size = UDim2.fromOffset(10, 10)
+	dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	dot.BorderSizePixel = 0
+	dot.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = dot
+
+	local outline = Instance.new("UIStroke")
+	outline.Color = Color3.fromRGB(0, 0, 0)
+	outline.Thickness = 1
+	outline.Parent = dot
+
+	trackedModels[model] = true
+end
+
+local function scanForTargets()
+	for _, object in ipairs(Workspace:GetDescendants()) do
+		if isTargetModel(object) then
+			addESP(object)
+		end
+	end
+end
+
+local function enableESP()
+	if espEnabled then
+		return
+	end
+
+	espEnabled = true
+	scanForTargets()
+
+	descendantAddedConnection = Workspace.DescendantAdded:Connect(function(object)
+		if not espEnabled then
+			return
+		end
+
+		if isTargetModel(object) then
+			task.defer(function()
+				addESP(object)
+			end)
+
+			return
+		end
+
+		if object:IsA("BasePart") then
+			local model = object:FindFirstAncestorOfClass("Model")
+
+			if model and TARGET_NAMES[model.Name] then
+				task.defer(function()
+					addESP(model)
+				end)
+			end
+		end
+	end)
+end
+
+local function disableESP()
+	if not espEnabled then
+		return
+	end
+
+	espEnabled = false
+
+	if descendantAddedConnection then
+		descendantAddedConnection:Disconnect()
+		descendantAddedConnection = nil
+	end
+
+	for model in pairs(trackedModels) do
+		if model and model.Parent then
+			removeESP(model)
+		end
+	end
+
+	table.clear(trackedModels)
+
+	-- Removes any dots that were not present in trackedModels.
+	for _, object in ipairs(Workspace:GetDescendants()) do
+		if object:IsA("BillboardGui") and object.Name == ESP_NAME then
+			object:Destroy()
+		end
+	end
+end
+
+local function toggleESP()
+	if espEnabled then
+		disableESP()
+	else
+		enableESP()
+	end
+end
+
+local MeatESPButton = MainTab:CreateButton({
+	Name = "Toggle Meat ESP",
+
+	Callback = function()
+		toggleESP()
+	end,
+})
+```
+
+
 
 
 
