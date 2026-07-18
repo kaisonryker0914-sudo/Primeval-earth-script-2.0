@@ -595,6 +595,97 @@ local ZoneTeleportButton = TPTab:CreateButton({
 	end,
 })
 
+```lua
+----------------------------------------------------------------------------------
+-- CLICK TP BUTTON
+-- Toggle with GUI button, teleport with Q
+----------------------------------------------------------------------------------
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local clickTPEnabled = false
+local TELEPORT_HEIGHT_OFFSET = 3
+
+local function getRootPart()
+	local character = player.Character
+
+	if not character then
+		return nil
+	end
+
+	return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function teleportToMouse()
+	if not clickTPEnabled then
+		return
+	end
+
+	local rootPart = getRootPart()
+
+	if not rootPart then
+		return
+	end
+
+	-- Mouse.Hit contains the 3D position underneath the cursor.
+	local targetPosition = mouse.Hit.Position
+
+	rootPart.CFrame = CFrame.new(
+		targetPosition + Vector3.new(0, TELEPORT_HEIGHT_OFFSET, 0)
+	)
+end
+
+local function enableClickTP()
+	clickTPEnabled = true
+end
+
+local function disableClickTP()
+	clickTPEnabled = false
+end
+
+local function toggleClickTP()
+	if clickTPEnabled then
+		disableClickTP()
+	else
+		enableClickTP()
+	end
+end
+
+local ClickTPButton = MainTab:CreateButton({
+	Name = "Toggle Click TP",
+
+	Callback = function()
+		toggleClickTP()
+	end,
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	-- Prevent activation while the game has processed the input,
+	-- including when typing in Roblox chat.
+	if gameProcessed then
+		return
+	end
+
+	-- Also prevents activation in any focused text box.
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.Q then
+		teleportToMouse()
+	end
+end)
+
+player.CharacterRemoving:Connect(function()
+	-- Click TP remains enabled after respawning.
+	-- Change this to disableClickTP() if you want it turned off on death.
+end)
+```
+
 ----------------------------------------------------------------------------------
 -- TOGGLE MEAT / CORPSE RED DOT ESP
 ----------------------------------------------------------------------------------
