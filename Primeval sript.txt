@@ -483,4 +483,113 @@ local AutoDrinkButton = MainTab:CreateButton({
 })
 
 
+----------------------------------------------------------------------------------
+-- AUTO ZONE TELEPORT BUTTON
+----------------------------------------------------------------------------------
+
+local autoZoneTeleportEnabled = false
+local zoneTeleportThread
+
+local ZONE_WAIT_TIME = 13
+
+local zonePositions = {
+	Vector3.new(-510, 87, -431),   -- Zone 1
+	Vector3.new(-619, 162, -1134), -- Zone 2
+	Vector3.new(282, 86, -1028),   -- Zone 3
+	Vector3.new(1453, 88, -677),   -- Zone 4
+	Vector3.new(1088, 83, 474),    -- Zone 5
+	Vector3.new(-169, 115, 390),   -- Zone 6
+}
+
+local function getRootPart()
+	local character = player.Character or player.CharacterAdded:Wait()
+	return character:WaitForChild("HumanoidRootPart")
+end
+
+local function teleportToZone(position)
+	local rootPart = getRootPart()
+
+	-- Places the character slightly above the coordinates.
+	rootPart.CFrame = CFrame.new(position + Vector3.new(0, 3, 0))
+end
+
+local function waitWithCancellation(duration)
+	local elapsed = 0
+
+	while elapsed < duration do
+		if not autoZoneTeleportEnabled then
+			return false
+		end
+
+		elapsed += task.wait(0.1)
+	end
+
+	return true
+end
+
+local function startZoneTeleport()
+	if autoZoneTeleportEnabled then
+		return
+	end
+
+	autoZoneTeleportEnabled = true
+
+	zoneTeleportThread = task.spawn(function()
+		for zoneNumber, position in ipairs(zonePositions) do
+			if not autoZoneTeleportEnabled then
+				break
+			end
+
+			local success, teleportError = pcall(function()
+				teleportToZone(position)
+			end)
+
+			if not success then
+				warn(
+					"Failed to teleport to Zone "
+						.. zoneNumber
+						.. ":",
+					teleportError
+				)
+			end
+
+			-- Do not wait after the final zone.
+			if zoneNumber < #zonePositions then
+				local completedWait =
+					waitWithCancellation(ZONE_WAIT_TIME)
+
+				if not completedWait then
+					break
+				end
+			end
+		end
+
+		autoZoneTeleportEnabled = false
+		zoneTeleportThread = nil
+	end)
+end
+
+local function stopZoneTeleport()
+	autoZoneTeleportEnabled = false
+end
+
+local function toggleZoneTeleport()
+	if autoZoneTeleportEnabled then
+		stopZoneTeleport()
+	else
+		startZoneTeleport()
+	end
+end
+
+local ZoneTeleportButton = MainTab:CreateButton({
+	Name = "Toggle Zone Teleport",
+
+	Callback = function()
+		toggleZoneTeleport()
+	end,
+})
+
+
+
+
 
