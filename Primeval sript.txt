@@ -589,7 +589,6 @@ local ZoneTeleportButton = MainTab:CreateButton({
 	end,
 })
 
-```lua
 ----------------------------------------------------------------------------------
 -- TOGGLE MEAT / CORPSE RED DOT ESP
 ----------------------------------------------------------------------------------
@@ -765,7 +764,7 @@ local MeatESPButton = MainTab:CreateButton({
 		toggleESP()
 	end,
 })
-```
+
 
 
 
