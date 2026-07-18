@@ -488,13 +488,6 @@ local AutoDrinkButton = MainTab:CreateButton({
 	end,
 })
 
-
- to teleport to Zone "
-						.. zoneNumber
-						.. ":",
-					teleportError
-				)
-			end
 ----------------------------------------------------------------------------------
 -- LOOPING AUTO ZONE TELEPORT BUTTON
 ----------------------------------------------------------------------------------
