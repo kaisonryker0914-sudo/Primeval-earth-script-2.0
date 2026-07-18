@@ -654,7 +654,7 @@ local function toggleClickTP()
 	end
 end
 
-local ClickTPButton = MainTab:CreateButton({
+local ClickTPButton = TPTab:CreateButton({
 	Name = "Toggle Click TP",
 
 	Callback = function()
