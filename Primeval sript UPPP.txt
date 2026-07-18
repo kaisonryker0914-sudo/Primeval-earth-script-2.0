@@ -489,8 +489,14 @@ local AutoDrinkButton = MainTab:CreateButton({
 })
 
 
+ to teleport to Zone "
+						.. zoneNumber
+						.. ":",
+					teleportError
+				)
+			end
 ----------------------------------------------------------------------------------
--- AUTO ZONE TELEPORT BUTTON
+-- LOOPING AUTO ZONE TELEPORT BUTTON
 ----------------------------------------------------------------------------------
 
 local autoZoneTeleportEnabled = false
@@ -515,8 +521,10 @@ end
 local function teleportToZone(position)
 	local rootPart = getRootPart()
 
-	-- Places the character slightly above the coordinates.
-	rootPart.CFrame = CFrame.new(position + Vector3.new(0, 3, 0))
+	-- Places the player slightly above the coordinates.
+	rootPart.CFrame = CFrame.new(
+		position + Vector3.new(0, 3, 0)
+	)
 end
 
 local function waitWithCancellation(duration)
@@ -541,26 +549,27 @@ local function startZoneTeleport()
 	autoZoneTeleportEnabled = true
 
 	zoneTeleportThread = task.spawn(function()
-		for zoneNumber, position in ipairs(zonePositions) do
-			if not autoZoneTeleportEnabled then
-				break
-			end
+		while autoZoneTeleportEnabled do
+			for zoneNumber, position in ipairs(zonePositions) do
+				if not autoZoneTeleportEnabled then
+					break
+				end
 
-			local success, teleportError = pcall(function()
-				teleportToZone(position)
-			end)
+				local success, teleportError = pcall(function()
+					teleportToZone(position)
+				end)
 
-			if not success then
-				warn(
-					"Failed to teleport to Zone "
-						.. zoneNumber
-						.. ":",
-					teleportError
-				)
-			end
+				if not success then
+					warn(
+						"Failed to teleport to Zone "
+							.. zoneNumber
+							.. ":",
+						teleportError
+					)
+				end
 
-			-- Do not wait after the final zone.
-			if zoneNumber < #zonePositions then
+				-- Wait before moving to the next zone.
+				-- This also waits after Zone 6 before restarting at Zone 1.
 				local completedWait =
 					waitWithCancellation(ZONE_WAIT_TIME)
 
@@ -570,7 +579,6 @@ local function startZoneTeleport()
 			end
 		end
 
-		autoZoneTeleportEnabled = false
 		zoneTeleportThread = nil
 	end)
 end
@@ -587,13 +595,18 @@ local function toggleZoneTeleport()
 	end
 end
 
-local ZoneTeleportButton = TPTab:CreateButton({
-	Name = "Toggle Zone Teleport",
+local ZoneTeleportButton = MainTab:CreateButton({
+	Name = "Toggle Loop Zone TP",
 
 	Callback = function()
 		toggleZoneTeleport()
 	end,
 })
+
+player.CharacterRemoving:Connect(function()
+	-- Stops the loop when the player dies or resets.
+	stopZoneTeleport()
+end)
 
 ----------------------------------------------------------------------------------
 -- CLICK TP BUTTON
