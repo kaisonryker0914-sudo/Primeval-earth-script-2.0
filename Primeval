@@ -1,0 +1,880 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "🦖 Primeval Survival Script 🦕",
+   Icon = 111155176453434, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "HyperMint Hub",
+   LoadingSubtitle = "By:HyperMint ",
+   ShowText = "Rayfield", -- for mobile users to unhide Rayfield, change if you'd like
+   Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   ToggleUIKeybind = "l", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from emitting warnings when the script has a version mismatch with the interface.
+
+   -- ScriptID = "sid_xxxxxxxxxxxx", -- Your Script ID from developer.sirius.menu — enables analytics, managed keys, and script hosting
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = PrimevalScript, -- Create a custom folder for your hub/game
+      FileName = "Settings"
+   },
+
+   Discord = {
+      Enabled = True, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "https://discord.gg/BBWcy9SxHk", -- The Discord invite code, do not include Discord.gg/. E.g. Discord.gg/ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the Discord every time they load it up
+   },
+
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+      FileName = "Key", -- It is recommended to use something unique, as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"Hello"} -- List of keys that the system will accept, can be RAW file links (pastebin, github, etc.) or simple strings ("hello", "key22")
+   }
+})
+
+Rayfield:Notify({
+   Title = "Notifiction",
+   Content = "Primeval Survival Script executed correctly",
+   Duration = 6.5,
+   Image = 111155176453434,
+})
+
+local MainTab = Window:CreateTab("🏠Home", nil) -- Title, Image
+local Section = MainTab:CreateSection("Main")
+
+local ESPTab = Window:CreateTab("ESP", nil) -- Title, Image
+local Section = ESPTab:CreateSection("ESP")
+
+local TPTab = Window:CreateTab("Teleports", nil) -- Title, Image
+local Section = TPTab:CreateSection("TP")
+
+local CurrentFlySpeed = 10
+
+local Slider = MainTab:CreateSlider({
+	Name = "Fly Speed",
+	Range = {0, 300},
+	Increment = 10,
+	Suffix = " Fly",
+	CurrentValue = CurrentFlySpeed,
+	Flag = "FlySpeedSlider",
+
+	Callback = function(value)
+		CurrentFlySpeed = value
+	end,
+})
+
+local function ValueFlySpeed()
+	return CurrentFlySpeed
+end
+----------------------------------------------------------------------------------
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+local flying = false
+
+local flyConnection
+local movementInputBeganConnection
+local movementInputEndedConnection
+
+local bodyGyro
+local bodyVelocity
+local humanoid
+
+local controls = {
+	Forward = 0,
+	Backward = 0,
+	Left = 0,
+	Right = 0,
+	Up = 0,
+	Down = 0,
+}
+
+local function resetControls()
+	for controlName in pairs(controls) do
+		controls[controlName] = 0
+	end
+end
+
+local function setControl(keyCode, value)
+	if keyCode == Enum.KeyCode.W then
+		controls.Forward = value
+
+	elseif keyCode == Enum.KeyCode.S then
+		controls.Backward = value
+
+	elseif keyCode == Enum.KeyCode.A then
+		controls.Left = value
+
+	elseif keyCode == Enum.KeyCode.D then
+		controls.Right = value
+
+	elseif keyCode == Enum.KeyCode.Space then
+		controls.Up = value
+
+	elseif keyCode == Enum.KeyCode.LeftControl then
+		controls.Down = value
+	end
+end
+
+local function stopFlying()
+	flying = false
+	resetControls()
+
+	if flyConnection then
+		flyConnection:Disconnect()
+		flyConnection = nil
+	end
+
+	if movementInputBeganConnection then
+		movementInputBeganConnection:Disconnect()
+		movementInputBeganConnection = nil
+	end
+
+	if movementInputEndedConnection then
+		movementInputEndedConnection:Disconnect()
+		movementInputEndedConnection = nil
+	end
+
+	if bodyGyro then
+		bodyGyro:Destroy()
+		bodyGyro = nil
+	end
+
+	if bodyVelocity then
+		bodyVelocity:Destroy()
+		bodyVelocity = nil
+	end
+
+	if humanoid then
+		humanoid.PlatformStand = false
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+end
+
+local function startFlying()
+	local character = player.Character or player.CharacterAdded:Wait()
+	local rootPart = character:WaitForChild("HumanoidRootPart")
+
+	humanoid = character:WaitForChild("Humanoid")
+
+	local camera = workspace.CurrentCamera
+
+	resetControls()
+	flying = true
+
+	bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.Name = "FlyGyro"
+	bodyGyro.P = 90000
+	bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+	bodyGyro.CFrame = rootPart.CFrame
+	bodyGyro.Parent = rootPart
+
+	bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.Name = "FlyVelocity"
+	bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+	bodyVelocity.Velocity = Vector3.zero
+	bodyVelocity.Parent = rootPart
+
+	humanoid.PlatformStand = true
+
+	movementInputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or not flying then
+			return
+		end
+
+		setControl(input.KeyCode, 1)
+	end)
+
+	movementInputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+		if not flying then
+			return
+		end
+
+		setControl(input.KeyCode, 0)
+	end)
+
+	flyConnection = RunService.RenderStepped:Connect(function()
+		if not flying then
+			return
+		end
+
+		if not character.Parent or humanoid.Health <= 0 then
+			stopFlying()
+			return
+		end
+
+		local cameraCFrame = camera.CFrame
+
+		local forwardAmount = controls.Forward - controls.Backward
+		local sidewaysAmount = controls.Right - controls.Left
+		local verticalAmount = controls.Up - controls.Down
+
+		local movement =
+			(cameraCFrame.LookVector * forwardAmount)
+			+ (cameraCFrame.RightVector * sidewaysAmount)
+			+ (Vector3.yAxis * verticalAmount)
+
+		local flySpeed = ValueFlySpeed()
+
+		if typeof(flySpeed) ~= "number" then
+			warn("ValueFlySpeed() must return a number")
+			flySpeed = 50
+		end
+
+		if movement.Magnitude > 0 then
+			bodyVelocity.Velocity = movement.Unit * flySpeed
+		else
+			bodyVelocity.Velocity = Vector3.zero
+		end
+
+		bodyGyro.CFrame = cameraCFrame
+	end)
+end
+
+local function toggleFlying()
+	if flying then
+		stopFlying()
+	else
+		startFlying()
+	end
+end
+
+local Button = MainTab:CreateButton({
+	Name = "Toggle Fly:   P",
+
+	Callback = function()
+		toggleFlying()
+	end,
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.P then
+		toggleFlying()
+	end
+end)
+
+player.CharacterRemoving:Connect(function()
+	if flying then
+		stopFlying()
+	end
+end)
+
+----------------------------------------------------------------------------------
+-- WALKSPEED SLIDER + BUTTON
+----------------------------------------------------------------------------------
+
+local character = player.Character or player.CharacterAdded:Wait()
+local currentHumanoid = character:WaitForChild("Humanoid")
+
+-- Pull both values from the player's current Humanoid.
+local DefaultWalkSpeed = currentHumanoid.WalkSpeed
+local CurrentWalkSpeed = currentHumanoid.WalkSpeed
+
+local WalkSpeedSlider = MainTab:CreateSlider({
+	Name = "Walk Speed",
+	Range = {0, 300},
+	Increment = 1,
+	Suffix = " Speed",
+	CurrentValue = CurrentWalkSpeed,
+	Flag = "WalkSpeedSlider",
+
+	Callback = function(value)
+		CurrentWalkSpeed = value
+
+		-- Update immediately while enabled.
+		if walkSpeedEnabled then
+			local humanoid = player.Character
+				and player.Character:FindFirstChildOfClass("Humanoid")
+
+			if humanoid then
+				humanoid.WalkSpeed = CurrentWalkSpeed
+			end
+		end
+	end,
+})
+
+local walkSpeedEnabled = false
+local walkSpeedConnection
+
+local function ValueWalkSpeed()
+	return CurrentWalkSpeed
+end
+
+local function getCurrentHumanoid()
+	local currentCharacter = player.Character
+
+	if not currentCharacter then
+		return nil
+	end
+
+	return currentCharacter:FindFirstChildOfClass("Humanoid")
+end
+
+local function updateWalkSpeed()
+	local humanoid = getCurrentHumanoid()
+
+	if not humanoid then
+		return
+	end
+
+	if walkSpeedEnabled then
+		humanoid.WalkSpeed = ValueWalkSpeed()
+	else
+		humanoid.WalkSpeed = DefaultWalkSpeed
+	end
+end
+
+local function enableWalkSpeed()
+	if walkSpeedEnabled then
+		return
+	end
+
+	local humanoid = getCurrentHumanoid()
+
+	if humanoid then
+		-- Remember the speed the player had before enabling.
+		DefaultWalkSpeed = humanoid.WalkSpeed
+	end
+
+	walkSpeedEnabled = true
+	updateWalkSpeed()
+
+	walkSpeedConnection = RunService.Heartbeat:Connect(function()
+		local activeHumanoid = getCurrentHumanoid()
+
+		if activeHumanoid
+			and activeHumanoid.WalkSpeed ~= CurrentWalkSpeed then
+
+			activeHumanoid.WalkSpeed = CurrentWalkSpeed
+		end
+	end)
+end
+
+local function disableWalkSpeed()
+	if not walkSpeedEnabled then
+		return
+	end
+
+	walkSpeedEnabled = false
+
+	if walkSpeedConnection then
+		walkSpeedConnection:Disconnect()
+		walkSpeedConnection = nil
+	end
+
+	updateWalkSpeed()
+end
+
+local function toggleWalkSpeed()
+	if walkSpeedEnabled then
+		disableWalkSpeed()
+	else
+		enableWalkSpeed()
+	end
+end
+
+local WalkSpeedButton = MainTab:CreateButton({
+	Name = "Toggle Walk Speed:   U",
+
+	Callback = function()
+		toggleWalkSpeed()
+	end,
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.U then
+		toggleWalkSpeed()
+	end
+end)
+
+player.CharacterAdded:Connect(function(newCharacter)
+	local newHumanoid = newCharacter:WaitForChild("Humanoid")
+
+	-- Pull the new character's current WalkSpeed.
+	DefaultWalkSpeed = newHumanoid.WalkSpeed
+
+	if walkSpeedEnabled then
+		newHumanoid.WalkSpeed = CurrentWalkSpeed
+	else
+		CurrentWalkSpeed = newHumanoid.WalkSpeed
+	end
+end)
+
+player.CharacterRemoving:Connect(function()
+	if walkSpeedConnection then
+		walkSpeedConnection:Disconnect()
+		walkSpeedConnection = nil
+	end
+end)
+
+----------------------------------------------------------------------------------
+-- AUTO DRINK BUTTON
+----------------------------------------------------------------------------------
+
+local autoDrinkEnabled = false
+local autoDrinkThread
+
+-- Change this to control how often Drink is invoked.
+local DRINK_DELAY = 1
+
+local function drink()
+	local characterFunctions = game:GetService("ReplicatedStorage")
+		:WaitForChild("Remotes")
+		:WaitForChild("Character")
+		:WaitForChild("CharacterFunctions")
+
+	local success, result = pcall(function()
+		return characterFunctions:InvokeServer("Drink")
+	end)
+
+	if not success then
+		warn("Auto Drink failed:", result)
+	end
+end
+
+local function startAutoDrink()
+	if autoDrinkEnabled then
+		return
+	end
+
+	autoDrinkEnabled = true
+
+	autoDrinkThread = task.spawn(function()
+		while autoDrinkEnabled do
+			drink()
+			task.wait(DRINK_DELAY)
+		end
+
+		autoDrinkThread = nil
+	end)
+end
+
+local function stopAutoDrink()
+	autoDrinkEnabled = false
+end
+
+local function toggleAutoDrink()
+	if autoDrinkEnabled then
+		stopAutoDrink()
+	else
+		startAutoDrink()
+	end
+end
+
+local AutoDrinkButton = MainTab:CreateButton({
+	Name = "Toggle Auto Drink",
+
+	Callback = function()
+		toggleAutoDrink()
+	end,
+})
+
+
+ to teleport to Zone "
+						.. zoneNumber
+						.. ":",
+					teleportError
+				)
+			end
+----------------------------------------------------------------------------------
+-- LOOPING AUTO ZONE TELEPORT BUTTON
+----------------------------------------------------------------------------------
+
+local autoZoneTeleportEnabled = false
+local zoneTeleportThread
+
+local ZONE_WAIT_TIME = 13
+
+local zonePositions = {
+	Vector3.new(-510, 87, -431),   -- Zone 1
+	Vector3.new(-619, 162, -1134), -- Zone 2
+	Vector3.new(282, 86, -1028),   -- Zone 3
+	Vector3.new(1453, 88, -677),   -- Zone 4
+	Vector3.new(1088, 83, 474),    -- Zone 5
+	Vector3.new(-169, 115, 390),   -- Zone 6
+}
+
+local function getRootPart()
+	local character = player.Character or player.CharacterAdded:Wait()
+	return character:WaitForChild("HumanoidRootPart")
+end
+
+local function teleportToZone(position)
+	local rootPart = getRootPart()
+
+	-- Places the player slightly above the coordinates.
+	rootPart.CFrame = CFrame.new(
+		position + Vector3.new(0, 3, 0)
+	)
+end
+
+local function waitWithCancellation(duration)
+	local elapsed = 0
+
+	while elapsed < duration do
+		if not autoZoneTeleportEnabled then
+			return false
+		end
+
+		elapsed += task.wait(0.1)
+	end
+
+	return true
+end
+
+local function startZoneTeleport()
+	if autoZoneTeleportEnabled then
+		return
+	end
+
+	autoZoneTeleportEnabled = true
+
+	zoneTeleportThread = task.spawn(function()
+		while autoZoneTeleportEnabled do
+			for zoneNumber, position in ipairs(zonePositions) do
+				if not autoZoneTeleportEnabled then
+					break
+				end
+
+				local success, teleportError = pcall(function()
+					teleportToZone(position)
+				end)
+
+				if not success then
+					warn(
+						"Failed to teleport to Zone "
+							.. zoneNumber
+							.. ":",
+						teleportError
+					)
+				end
+
+				-- Wait before moving to the next zone.
+				-- This also waits after Zone 6 before restarting at Zone 1.
+				local completedWait =
+					waitWithCancellation(ZONE_WAIT_TIME)
+
+				if not completedWait then
+					break
+				end
+			end
+		end
+
+		zoneTeleportThread = nil
+	end)
+end
+
+local function stopZoneTeleport()
+	autoZoneTeleportEnabled = false
+end
+
+local function toggleZoneTeleport()
+	if autoZoneTeleportEnabled then
+		stopZoneTeleport()
+	else
+		startZoneTeleport()
+	end
+end
+
+local ZoneTeleportButton = MainTab:CreateButton({
+	Name = "Toggle Loop Zone TP",
+
+	Callback = function()
+		toggleZoneTeleport()
+	end,
+})
+
+player.CharacterRemoving:Connect(function()
+	-- Stops the loop when the player dies or resets.
+	stopZoneTeleport()
+end)
+
+----------------------------------------------------------------------------------
+-- CLICK TP BUTTON
+-- Toggle with GUI button, teleport with Q
+----------------------------------------------------------------------------------
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local clickTPEnabled = false
+local TELEPORT_HEIGHT_OFFSET = 3
+
+local function getRootPart()
+	local character = player.Character
+
+	if not character then
+		return nil
+	end
+
+	return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function teleportToMouse()
+	if not clickTPEnabled then
+		return
+	end
+
+	local rootPart = getRootPart()
+
+	if not rootPart then
+		return
+	end
+
+	-- Mouse.Hit contains the 3D position underneath the cursor.
+	local targetPosition = mouse.Hit.Position
+
+	rootPart.CFrame = CFrame.new(
+		targetPosition + Vector3.new(0, TELEPORT_HEIGHT_OFFSET, 0)
+	)
+end
+
+local function enableClickTP()
+	clickTPEnabled = true
+end
+
+local function disableClickTP()
+	clickTPEnabled = false
+end
+
+local function toggleClickTP()
+	if clickTPEnabled then
+		disableClickTP()
+	else
+		enableClickTP()
+	end
+end
+
+local ClickTPButton = TPTab:CreateButton({
+	Name = "Toggle Click TP:   Q",
+
+	Callback = function()
+		toggleClickTP()
+	end,
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	-- Prevent activation while the game has processed the input,
+	-- including when typing in Roblox chat.
+	if gameProcessed then
+		return
+	end
+
+	-- Also prevents activation in any focused text box.
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.Q then
+		teleportToMouse()
+	end
+end)
+
+player.CharacterRemoving:Connect(function()
+	-- Click TP remains enabled after respawning.
+	-- Change this to disableClickTP() if you want it turned off on death.
+end)
+
+----------------------------------------------------------------------------------
+-- TOGGLE MEAT / CORPSE RED DOT ESP
+----------------------------------------------------------------------------------
+
+local Workspace = game:GetService("Workspace")
+
+local TARGET_NAMES = {
+	Meat1 = true,
+	Meat2 = true,
+	Meat3 = true,
+	Corpse = true,
+}
+
+local ESP_NAME = "MeatRedDotESP"
+
+local espEnabled = false
+local descendantAddedConnection
+local trackedModels = {}
+
+local function isTargetModel(object)
+	return object:IsA("Model") and TARGET_NAMES[object.Name] == true
+end
+
+local function getAdornee(model)
+	return model.PrimaryPart
+		or model:FindFirstChild("HumanoidRootPart")
+		or model:FindFirstChild("Head")
+		or model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function removeESP(model)
+	local esp = model:FindFirstChild(ESP_NAME)
+
+	if esp then
+		esp:Destroy()
+	end
+
+	trackedModels[model] = nil
+end
+
+local function addESP(model)
+	if not espEnabled then
+		return
+	end
+
+	if not isTargetModel(model) then
+		return
+	end
+
+	if model:FindFirstChild(ESP_NAME) then
+		trackedModels[model] = true
+		return
+	end
+
+	local adornee = getAdornee(model)
+
+	if not adornee then
+		return
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = ESP_NAME
+	billboard.Adornee = adornee
+	billboard.Size = UDim2.fromOffset(20, 20)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 10000
+	billboard.Parent = model
+
+	local dot = Instance.new("Frame")
+	dot.Name = "Dot"
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.fromScale(0.5, 0.5)
+	dot.Size = UDim2.fromOffset(10, 10)
+	dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	dot.BorderSizePixel = 0
+	dot.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = dot
+
+	local outline = Instance.new("UIStroke")
+	outline.Color = Color3.fromRGB(0, 0, 0)
+	outline.Thickness = 1
+	outline.Parent = dot
+
+	trackedModels[model] = true
+end
+
+local function scanForTargets()
+	for _, object in ipairs(Workspace:GetDescendants()) do
+		if isTargetModel(object) then
+			addESP(object)
+		end
+	end
+end
+
+local function enableESP()
+	if espEnabled then
+		return
+	end
+
+	espEnabled = true
+	scanForTargets()
+
+	descendantAddedConnection = Workspace.DescendantAdded:Connect(function(object)
+		if not espEnabled then
+			return
+		end
+
+		if isTargetModel(object) then
+			task.defer(function()
+				addESP(object)
+			end)
+
+			return
+		end
+
+		if object:IsA("BasePart") then
+			local model = object:FindFirstAncestorOfClass("Model")
+
+			if model and TARGET_NAMES[model.Name] then
+				task.defer(function()
+					addESP(model)
+				end)
+			end
+		end
+	end)
+end
+
+local function disableESP()
+	if not espEnabled then
+		return
+	end
+
+	espEnabled = false
+
+	if descendantAddedConnection then
+		descendantAddedConnection:Disconnect()
+		descendantAddedConnection = nil
+	end
+
+	for model in pairs(trackedModels) do
+		if model and model.Parent then
+			removeESP(model)
+		end
+	end
+
+	table.clear(trackedModels)
+
+	-- Removes any dots that were not present in trackedModels.
+	for _, object in ipairs(Workspace:GetDescendants()) do
+		if object:IsA("BillboardGui") and object.Name == ESP_NAME then
+			object:Destroy()
+		end
+	end
+end
+
+local function toggleESP()
+	if espEnabled then
+		disableESP()
+	else
+		enableESP()
+	end
+end
+
+local MeatESPButton = ESPTab:CreateButton({
+	Name = "Toggle Meat ESP",
+
+	Callback = function()
+		toggleESP()
+	end,
+})
+
+
+
+
+
+
